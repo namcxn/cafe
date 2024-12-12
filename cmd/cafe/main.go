@@ -145,18 +145,18 @@ func main() {
 	if len(deleting) > 0 {
 		fmt.Printf("Those records will be deleted:\n")
 
-		fmt.Printf("%-12s%-8s%-6s%-24s%-20s%s\n", "ZONE", "TYPE", "TTL", "NAME", "CONTENT", "PROXY")
+		fmt.Printf("%-20s%-8s%-6s%-35s%-20s%s\n", "ZONE", "TYPE", "TTL", "NAME", "CONTENT", "PROXY")
 		for _, record := range deleting {
-			fmt.Printf("%-12s%-8s%-6d%-24s%-20s%v\n", getZoneName(record), record.Type, record.TTL, record.Name, record.Content, *record.Proxied)
+			fmt.Printf("%-20s%-8s%-6d%-35s%-20s%v\n", getZoneName(record), record.Type, record.TTL, record.Name, record.Content, *record.Proxied)
 		}
 	}
 
 	if len(adding) > 0 {
 		fmt.Printf("\nThose records will be created:\n")
 
-		fmt.Printf("%-12s%-8s%-6s%-24s%s-10s%s\n", "ZONE", "TYPE", "TTL", "NAME", "CONTENT", "PROXY")
+		fmt.Printf("%-20s%-8s%-6s%-35s%s%s\n", "ZONE", "TYPE", "TTL", "NAME", "CONTENT", "PROXY")
 		for _, record := range adding {
-			fmt.Printf("%-12s%-8s%-6d%-24s%-20s%v\n", getZoneName(record), record.Type, record.TTL, record.Name, record.Content, *record.Proxied)
+			fmt.Printf("%-20s%-8s%-6d%-35s%-20s%v\n", getZoneName(record), record.Type, record.TTL, record.Name, record.Content, *record.Proxied)
 		}
 	}
 
@@ -167,7 +167,7 @@ func main() {
 		}
 
 		for _, record := range deleting {
-			fmt.Printf("deleting %-12s%-8s%-6d%-24s%s...\n", getZoneName(record), record.Type, record.TTL, record.Name, record.Content)
+			fmt.Printf("deleting %-20s%-8s%-6d%-35s%s...\n", getZoneName(record), record.Type, record.TTL, record.Name, record.Content)
 			err := api.DeleteDNSRecord(ctx, cloudflare.ZoneIdentifier(zoneIds[getZoneName(record)]), record.ID)
 			if err != nil {
 				log.Fatal(err)
@@ -175,7 +175,7 @@ func main() {
 		}
 
 		for _, record := range adding {
-			fmt.Printf("creating %-12s%-8s%-6d%-24s%s... ", getZoneName(record), record.Type, record.TTL, record.Name, record.Content)
+			fmt.Printf("creating %-20s%-8s%-6d%-35s%s... ", getZoneName(record), record.Type, record.TTL, record.Name, record.Content)
 
 			res, err := api.CreateDNSRecord(ctx, cloudflare.ZoneIdentifier(zoneIds[getZoneName(record)]), cloudflare.CreateDNSRecordParams{
 				Type:     record.Type,
@@ -188,7 +188,7 @@ func main() {
 			if err != nil {
 				log.Fatal(err)
 			}
-			fmt.Printf("%v\n", res)
+			fmt.Printf("%v\n", *res.Proxied)
 		}
 	}
 
