@@ -20,28 +20,12 @@ import (
 )
 
 func main() {
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
-		fmt.Println("\nToken source options:")
-		fmt.Println("  -token=env: Use CLOUDFLARE_API_TOKEN environment variable")
-		fmt.Println("  -token=1password: Use 1Password Connect with:")
-		fmt.Println("    - OP_SERVICE_ACCOUNT_TOKEN: 1Password Connect token")
-		fmt.Println("    - CF_1PASSWORD_ITEM: Reference to the item containing the token")
-		fmt.Println("  -token=vault: Use Hashicorp Vault with:")
-		fmt.Println("    - VAULT_ADDR: Vault server URL (optional)")
-		fmt.Println("    - VAULT_TOKEN: Vault authentication token")
-		fmt.Println("    - CLOUDFLARE_VAULT_PATH: Path to the secret in Vault")
-		fmt.Println("    - CLOUDFLARE_VAULT_KEY: Key for the token in the secret (defaults to 'token')")
-		fmt.Println("\nFlags:")
-		flag.PrintDefaults()
-	}
-
+	flag.Usage = usage
 	flag.Parse()
 
 	token, err := token.GetCloudflareToken()
-	// fmt.Printf("token: %s\n", token) -> for debug
 	if err != nil {
-		log.Fatalf("Failed to get Cloudflare token: %v", err)
+		log.Fatal("token error:", err)
 	}
 
 	api, err := cloudflare.NewWithAPIToken(token)
@@ -49,7 +33,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Most API calls require a Context
 	ctx := context.Background()
 
 	zones, err := api.ListZones(ctx)
@@ -352,4 +335,20 @@ func toInterfaceSlice(strs []string) []interface{} {
 		interfaces[i] = v
 	}
 	return interfaces
+}
+
+func usage() {
+	fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+	fmt.Println("\nToken source options:")
+	fmt.Println("  -token=env: Use CLOUDFLARE_API_TOKEN environment variable")
+	fmt.Println("  -token=1password: Use 1Password Connect with:")
+	fmt.Println("    - OP_SERVICE_ACCOUNT_TOKEN: 1Password Connect token")
+	fmt.Println("    - CF_1PASSWORD_ITEM: Reference to the item containing the token")
+	fmt.Println("  -token=vault: Use Hashicorp Vault with:")
+	fmt.Println("    - VAULT_ADDR: Vault server URL (optional)")
+	fmt.Println("    - VAULT_TOKEN: Vault authentication token")
+	fmt.Println("    - CLOUDFLARE_VAULT_PATH: Path to the secret in Vault")
+	fmt.Println("    - CLOUDFLARE_VAULT_KEY: Key for the token in the secret (defaults to 'token')")
+	fmt.Println("\nFlags:")
+	flag.PrintDefaults()
 }
