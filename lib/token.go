@@ -31,10 +31,9 @@ func GetCloudflareToken() (string, error) {
 }
 
 func getTokenFrom1Password() (string, error) {
-	onepasswordUrl := os.Getenv("OP_CONNECT_HOST")
 	onepasswordToken := os.Getenv("OP_CONNECT_TOKEN")
-	if onepasswordUrl == "" || onepasswordToken == "" {
-		return "", fmt.Errorf("OP_CONNECT_HOST and OP_CONNECT_TOKEN environment variables are required for 1password")
+	if onepasswordToken == "" {
+		return "", fmt.Errorf("OP_CONNECT_TOKEN environment variables are required for 1password")
 	}
 
 	client, err := onepassword.NewClient(context.TODO(),
