@@ -31,21 +31,22 @@ func GetCloudflareToken() (string, error) {
 }
 
 func getTokenFrom1Password() (string, error) {
-	onepasswordToken := os.Getenv("OP_CONNECT_TOKEN")
+	onepasswordToken := os.Getenv("OP_SERVICE_ACCOUNT_TOKEN")
 	if onepasswordToken == "" {
-		return "", fmt.Errorf("OP_CONNECT_TOKEN environment variables are required for 1password")
+		return "", fmt.Errorf("OP_SERVICE_ACCOUNT_TOKEN environment variables are required for 1password")
 	}
 
 	client, err := onepassword.NewClient(context.TODO(),
 		onepassword.WithServiceAccountToken(onepasswordToken),
+		onepassword.WithIntegrationInfo("My 1Password Integration", "v1.0.0"),
 	)
 	if err != nil {
 		return "", fmt.Errorf("failed to create 1Password client: %w", err)
 	}
 
-	reference := os.Getenv("CLOUDFLARE_1PASSWORD_ITEM")
+	reference := os.Getenv("CF_1PASSWORD_ITEM")
 	if reference == "" {
-		return "", fmt.Errorf("CLOUDFLARE_1PASSWORD_ITEM environment variable is required")
+		return "", fmt.Errorf("CF_1PASSWORD_ITEM environment variable is required")
 	}
 
 	secret, err := client.Secrets.Resolve(context.Background(), reference)

@@ -25,9 +25,8 @@ func main() {
 		fmt.Println("\nToken source options:")
 		fmt.Println("  -token=env: Use CLOUDFLARE_API_TOKEN environment variable")
 		fmt.Println("  -token=1password: Use 1Password Connect with:")
-		fmt.Println("    - OP_CONNECT_HOST: 1Password Connect server URL")
-		fmt.Println("    - OP_CONNECT_TOKEN: 1Password Connect token")
-		fmt.Println("    - CLOUDFLARE_1PASSWORD_ITEM: Reference to the item containing the token")
+		fmt.Println("    - OP_SERVICE_ACCOUNT_TOKEN: 1Password Connect token")
+		fmt.Println("    - CF_1PASSWORD_ITEM: Reference to the item containing the token")
 		fmt.Println("  -token=vault: Use Hashicorp Vault with:")
 		fmt.Println("    - VAULT_ADDR: Vault server URL (optional)")
 		fmt.Println("    - VAULT_TOKEN: Vault authentication token")
@@ -40,6 +39,7 @@ func main() {
 	flag.Parse()
 
 	token, err := token.GetCloudflareToken()
+	// fmt.Printf("token: %s\n", token) -> for debug
 	if err != nil {
 		log.Fatalf("Failed to get Cloudflare token: %v", err)
 	}
@@ -168,18 +168,98 @@ func main() {
 	if len(deleting) > 0 {
 		fmt.Printf("Those records will be deleted:\n")
 
-		fmt.Printf("%-20s%-8s%-6s%-40s%-20s%s\n", "ZONE", "TYPE", "TTL", "NAME", "CONTENT", "PROXY")
+		// Headers
+		headers := []string{"ZONE", "TYPE", "TTL", "NAME", "CONTENT", "PROXY"}
+
+		// Collect all rows as strings
+		rows := [][]string{}
 		for _, record := range deleting {
-			fmt.Printf("%-20s%-8s%-6d%-40s%-20s%v\n", getZoneName(record), record.Type, record.TTL, record.Name, record.Content, *record.Proxied)
+			row := []string{
+				getZoneName(record),
+				record.Type,
+				fmt.Sprintf("%d", record.TTL),
+				record.Name,
+				record.Content,
+				fmt.Sprintf("%v", *record.Proxied),
+			}
+			rows = append(rows, row)
+		}
+
+		// Calculate column widths
+		columnWidths := make([]int, len(headers))
+		for i, header := range headers {
+			columnWidths[i] = len(header)
+		}
+		for _, row := range rows {
+			for i, cell := range row {
+				if len(cell) > columnWidths[i] {
+					columnWidths[i] = len(cell)
+				}
+			}
+		}
+
+		// Create format string dynamically
+		formatParts := make([]string, len(columnWidths))
+		for i, width := range columnWidths {
+			formatParts[i] = fmt.Sprintf("%%-%ds", width+2)
+		}
+		format := strings.Join(formatParts, "")
+
+		// Print headers
+		fmt.Printf(format+"\n", toInterfaceSlice(headers)...)
+
+		// Print rows
+		for _, row := range rows {
+			fmt.Printf(format+"\n", toInterfaceSlice(row)...)
 		}
 	}
 
 	if len(adding) > 0 {
 		fmt.Printf("\nThose records will be created:\n")
 
-		fmt.Printf("%-20s%-8s%-6s%-40s%-40s%s\n", "ZONE", "TYPE", "TTL", "NAME", "CONTENT", "PROXY")
+		// Headers
+		headers := []string{"ZONE", "TYPE", "TTL", "NAME", "CONTENT", "PROXY"}
+
+		// Collect all rows as strings
+		rows := [][]string{}
 		for _, record := range adding {
-			fmt.Printf("%-20s%-8s%-6d%-40s%-40s%v\n", getZoneName(record), record.Type, record.TTL, record.Name, record.Content, *record.Proxied)
+			row := []string{
+				getZoneName(record),
+				record.Type,
+				fmt.Sprintf("%d", record.TTL),
+				record.Name,
+				record.Content,
+				fmt.Sprintf("%v", *record.Proxied),
+			}
+			rows = append(rows, row)
+		}
+
+		// Calculate column widths
+		columnWidths := make([]int, len(headers))
+		for i, header := range headers {
+			columnWidths[i] = len(header)
+		}
+		for _, row := range rows {
+			for i, cell := range row {
+				if len(cell) > columnWidths[i] {
+					columnWidths[i] = len(cell)
+				}
+			}
+		}
+
+		// Create format string dynamically
+		formatParts := make([]string, len(columnWidths))
+		for i, width := range columnWidths {
+			formatParts[i] = fmt.Sprintf("%%-%ds", width+2)
+		}
+		format := strings.Join(formatParts, "")
+
+		// Print headers
+		fmt.Printf(format+"\n", toInterfaceSlice(headers)...)
+
+		// Print rows
+		for _, row := range rows {
+			fmt.Printf(format+"\n", toInterfaceSlice(row)...)
 		}
 	}
 
@@ -264,4 +344,12 @@ func getZoneName(record cloudflare.DNSRecord) string {
 		return record.Name
 	}
 	return strings.Join(parts[len(parts)-2:], ".")
+}
+
+func toInterfaceSlice(strs []string) []interface{} {
+	interfaces := make([]interface{}, len(strs))
+	for i, v := range strs {
+		interfaces[i] = v
+	}
+	return interfaces
 }
