@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/fs"
 	"log"
@@ -14,14 +15,36 @@ import (
 
 	"github.com/cloudflare/cloudflare-go"
 	"github.com/google/go-jsonnet"
+
+	token "github.com/namcxn/cafe/lib"
 )
 
 func main() {
-	// Construct a new API object using a global API key
-	//api, err := cloudflare.New(os.Getenv("CLOUDFLARE_API_KEY"), os.Getenv("CLOUDFLARE_API_EMAIL"))
-	// alternatively, you can use a scoped API token
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+		fmt.Println("\nToken source options:")
+		fmt.Println("  -token=env: Use CLOUDFLARE_API_TOKEN environment variable")
+		fmt.Println("  -token=1password: Use 1Password Connect with:")
+		fmt.Println("    - OP_CONNECT_HOST: 1Password Connect server URL")
+		fmt.Println("    - OP_CONNECT_TOKEN: 1Password Connect token")
+		fmt.Println("    - CLOUDFLARE_1PASSWORD_ITEM: Reference to the item containing the token")
+		fmt.Println("  -token=vault: Use Hashicorp Vault with:")
+		fmt.Println("    - VAULT_ADDR: Vault server URL (optional)")
+		fmt.Println("    - VAULT_TOKEN: Vault authentication token")
+		fmt.Println("    - CLOUDFLARE_VAULT_PATH: Path to the secret in Vault")
+		fmt.Println("    - CLOUDFLARE_VAULT_KEY: Key for the token in the secret (defaults to 'token')")
+		fmt.Println("\nFlags:")
+		flag.PrintDefaults()
+	}
 
-	api, err := cloudflare.NewWithAPIToken(os.Getenv("CLOUDFLARE_API_TOKEN"))
+	flag.Parse()
+
+	token, err := token.GetCloudflareToken()
+	if err != nil {
+		log.Fatalf("Failed to get Cloudflare token: %v", err)
+	}
+
+	api, err := cloudflare.NewWithAPIToken(token)
 	if err != nil {
 		log.Fatal(err)
 	}
