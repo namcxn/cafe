@@ -77,13 +77,7 @@ func main() {
 			}
 
 			for _, record := range records {
-				// Extract the correct zone name
-				parts := strings.Split(record.Name, ".")
-				if len(parts) < 2 {
-					fmt.Printf("\nError at %s\nInvalid record name `%s`\n", path, record.Name)
-					os.Exit(1)
-				}
-				zoneName := strings.Join(parts[len(parts)-2:], ".")
+				zoneName := getZoneName(record)
 				if _, ok := zoneIds[zoneName]; !ok {
 					fmt.Printf("\nError at %s\nZone `%s` is not managed by cafe! Is it corrected?\n", path, zoneName)
 					os.Exit(1)
