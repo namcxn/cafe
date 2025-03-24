@@ -64,21 +64,21 @@ func main() {
 		zoneRoot = "./zones"
 	}
 	err = filepath.Walk(zoneRoot, func(path string, info fs.FileInfo, err error) error {
-
 		if info.IsDir() {
 			return nil
 		}
 		if strings.HasSuffix(path, ".jsonnet") {
 			jsonData, err := vm.EvaluateFile(path)
 			if err != nil {
-				return nil
+				log.Printf("Failed to evaluate Jsonnet file %s: %v", path, err)
+				return err
 			}
 
 			records := make([]cloudflare.DNSRecord, 0)
 
 			err = json.Unmarshal([]byte(jsonData), &records)
-
 			if err != nil {
+				log.Printf(format string, v ...any)("Error walking through zone directory: %v", err)
 				return err
 			}
 
@@ -96,7 +96,6 @@ func main() {
 
 		return nil
 	})
-
 	if err != nil {
 		log.Fatalf("walk dir error %s", err)
 	}
@@ -277,11 +276,9 @@ func main() {
 			fmt.Printf("%v\n", *res.Proxied)
 		}
 	}
-
 }
 
 func hash(r cloudflare.DNSRecord) string {
-
 	var s [16]byte
 
 	if r.Type == "MX" {
