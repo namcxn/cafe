@@ -78,7 +78,7 @@ func main() {
 
 			err = json.Unmarshal([]byte(jsonData), &records)
 			if err != nil {
-				log.Printf(format string, v ...any)("Error walking through zone directory: %v", err)
+				log.Printf("Error walking through zone directory: %v", err)
 				return err
 			}
 
