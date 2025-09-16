@@ -13,7 +13,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cloudflare/cloudflare-go"
+	"github.com/cloudflare/cloudflare-go/v6"
+	"github.com/cloudflare/cloudflare-go/v6/dns"
+	"github.com/cloudflare/cloudflare-go/v6/option"
+	"github.com/cloudflare/cloudflare-go/v6/zones"
 	"github.com/google/go-jsonnet"
 
 	token "github.com/namcxn/cafe/lib"
@@ -28,36 +31,39 @@ func main() {
 		log.Fatal("token error:", err)
 	}
 
-	api, err := cloudflare.NewWithAPIToken(token)
-	if err != nil {
-		log.Fatal(err)
-	}
+	api := cloudflare.NewClient(
+		option.WithAPIToken(token),
+	)
 
 	ctx := context.Background()
 
-	zones, err := api.ListZones(ctx)
+	zonesResult, err := api.Zones.List(ctx, zones.ZoneListParams{})
 	if err != nil {
 		log.Fatalf("get zones: %s", err)
 	}
+	zones := zonesResult.Result
 
 	zoneIds := make(map[string]string, 0)
 
-	cfRecords := make([]cloudflare.DNSRecord, 0)
+	cfRecords := make([]dns.RecordResponse, 0)
 
 	for _, zone := range zones {
 		zoneIds[zone.Name] = zone.ID
 
-		records, _, err := api.ListDNSRecords(ctx, cloudflare.ZoneIdentifier(zone.ID), cloudflare.ListDNSRecordsParams{})
+		recordsResult, err := api.DNS.Records.List(ctx, dns.RecordListParams{
+			ZoneID: cloudflare.F(zone.ID),
+		})
 		if err != nil {
 			log.Fatalf("get record for zone %s: %s", zone.Name, err)
 		}
+		records := recordsResult.Result
 
 		cfRecords = append(cfRecords, records...) // Get All Records
 	}
 
 	vm := jsonnet.MakeVM()
 
-	dfRecords := make([]cloudflare.DNSRecord, 0)
+	dfRecords := make([]dns.RecordResponse, 0)
 
 	zoneRoot := os.Getenv("ZONES_DIR")
 	if zoneRoot == "" {
@@ -74,7 +80,7 @@ func main() {
 				return err
 			}
 
-			records := make([]cloudflare.DNSRecord, 0)
+			records := make([]dns.RecordResponse, 0)
 
 			err = json.Unmarshal([]byte(jsonData), &records)
 			if err != nil {
@@ -105,8 +111,8 @@ func main() {
 	managed := SetOf[string]()
 	stored := SetOf[string]()
 
-	deleting := make([]cloudflare.DNSRecord, 0)
-	adding := make([]cloudflare.DNSRecord, 0)
+	deleting := make([]dns.RecordResponse, 0)
+	adding := make([]dns.RecordResponse, 0)
 
 	defined := SetOf[string]()
 	deprecate := SetOf[string]()
@@ -116,15 +122,16 @@ func main() {
 	}
 
 	for _, record := range dfRecords {
-		if record.Type == "CNAME" {
+		switch record.Type {
+		case "CNAME":
 			if cnames.Has(record.Name) {
 				log.Fatalf("ERROR: cname is duplicated: %s", record.Name)
 			}
 			cnames.Add(record.Name)
 			defined.Add(hash(record))
-		} else if record.Type == "DEPRECATED" {
+		case "DEPRECATED":
 			deprecate.Add(record.Name)
-		} else {
+		default:
 			defined.Add(hash(record))
 		}
 	}
@@ -158,11 +165,11 @@ func main() {
 		for _, record := range deleting {
 			row := []string{
 				getZoneName(record),
-				record.Type,
-				fmt.Sprintf("%d", record.TTL),
+				string(record.Type),
+				fmt.Sprintf("%.0f", record.TTL),
 				record.Name,
 				record.Content,
-				fmt.Sprintf("%v", *record.Proxied),
+				fmt.Sprintf("%v", record.Proxied),
 			}
 			rows = append(rows, row)
 		}
@@ -207,11 +214,11 @@ func main() {
 		for _, record := range adding {
 			row := []string{
 				getZoneName(record),
-				record.Type,
-				fmt.Sprintf("%d", record.TTL),
+				string(record.Type),
+				fmt.Sprintf("%.0f", record.TTL),
 				record.Name,
 				record.Content,
-				fmt.Sprintf("%v", *record.Proxied),
+				fmt.Sprintf("%v", record.Proxied),
 			}
 			rows = append(rows, row)
 		}
@@ -252,47 +259,53 @@ func main() {
 		}
 
 		for _, record := range deleting {
-			fmt.Printf("deleting %-20s%-8s%-6d%-40s%s...\n", getZoneName(record), record.Type, record.TTL, record.Name, record.Content)
-			err := api.DeleteDNSRecord(ctx, cloudflare.ZoneIdentifier(zoneIds[getZoneName(record)]), record.ID)
+			fmt.Printf("deleting %-20s%-8s%-6.0f%-40s%s...\n", getZoneName(record), record.Type, record.TTL, record.Name, record.Content)
+			_, err := api.DNS.Records.Delete(ctx, record.ID, dns.RecordDeleteParams{
+				ZoneID: cloudflare.F(zoneIds[getZoneName(record)]),
+			})
 			if err != nil {
 				log.Fatal(err)
 			}
 		}
 
 		for _, record := range adding {
-			fmt.Printf("creating %-20s%-8s%-6d%-40s%s... ", getZoneName(record), record.Type, record.TTL, record.Name, record.Content)
+			fmt.Printf("creating %-20s%-8s%-6.0f%-40s%s... ", getZoneName(record), record.Type, record.TTL, record.Name, record.Content)
 
-			res, err := api.CreateDNSRecord(ctx, cloudflare.ZoneIdentifier(zoneIds[getZoneName(record)]), cloudflare.CreateDNSRecordParams{
-				Type:     record.Type,
-				Name:     record.Name,
-				Content:  record.Content,
-				TTL:      record.TTL,
-				Priority: record.Priority,
-				Proxied:  record.Proxied,
+			res, err := api.DNS.Records.New(ctx, dns.RecordNewParams{
+				ZoneID: cloudflare.F(zoneIds[getZoneName(record)]),
+				Body: dns.RecordNewParamsBody{
+					Type:     cloudflare.F(dns.RecordNewParamsBodyType(record.Type)),
+					Name:     cloudflare.F(record.Name),
+					Content:  cloudflare.F(record.Content),
+					TTL:      cloudflare.F(record.TTL),
+					Priority: cloudflare.F(record.Priority),
+					Proxied:  cloudflare.F(record.Proxied),
+				},
 			})
 			if err != nil {
 				log.Fatal(err)
 			}
-			fmt.Printf("%v\n", *res.Proxied)
+			fmt.Printf("%v\n", res.Proxied)
 		}
 	}
 }
 
-func hash(r cloudflare.DNSRecord) string {
+func hash(r dns.RecordResponse) string {
 	var s [16]byte
 
-	if r.Type == "MX" {
-		s = md5.Sum([]byte(fmt.Sprintf("%s-%s-%d-%s-%s-%d", getZoneName(r), r.Type, r.TTL, r.Name, r.Content, *r.Priority)))
-	} else if r.Type == "A" || r.Type == "CNAME" || r.Type == "DEPRECATED" {
-		s = md5.Sum([]byte(fmt.Sprintf("%s-%s-%d-%s-%s-%v", getZoneName(r), "X", r.TTL, r.Name, r.Content, *r.Proxied)))
-	} else {
-		s = md5.Sum([]byte(fmt.Sprintf("%s-%s-%d-%s-%s", getZoneName(r), r.Type, r.TTL, r.Name, r.Content)))
+	switch r.Type {
+	case "MX":
+		s = md5.Sum([]byte(fmt.Sprintf("%s-%s-%.0f-%s-%s-%.0f", getZoneName(r), r.Type, r.TTL, r.Name, r.Content, r.Priority)))
+	case "A", "CNAME", "DEPRECATED":
+		s = md5.Sum([]byte(fmt.Sprintf("%s-%s-%.0f-%s-%s-%v", getZoneName(r), "X", r.TTL, r.Name, r.Content, r.Proxied)))
+	default:
+		s = md5.Sum([]byte(fmt.Sprintf("%s-%s-%.0f-%s-%s", getZoneName(r), r.Type, r.TTL, r.Name, r.Content)))
 	}
 
 	return hex.EncodeToString(s[:])
 }
 
-func nt(r cloudflare.DNSRecord) string {
+func nt(r dns.RecordResponse) string {
 	if r.Type == "A" || r.Type == "CNAME" || r.Type == "DEPRECATED" {
 		return fmt.Sprintf("%s-X", r.Name)
 	}
@@ -318,7 +331,7 @@ func (s Set[T]) Has(item T) bool {
 	return ok
 }
 
-func getZoneName(record cloudflare.DNSRecord) string {
+func getZoneName(record dns.RecordResponse) string {
 	parts := strings.Split(record.Name, ".")
 	if len(parts) < 2 {
 		return record.Name
