@@ -47,7 +47,7 @@ func getTokenFrom1Password() (string, error) {
 		reference = "op://vault/item-name/password"
 	}
 
-	secret, err := client.Secrets.Resolve(context.Background(), reference)
+	secret, err := client.Secrets().Resolve(context.Background(), reference)
 	if err != nil {
 		return "", fmt.Errorf("failed to get token from 1Password: %w", err)
 	}
